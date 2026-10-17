@@ -3,14 +3,12 @@ package com.extendedclip.deluxemenus.menu;
 import com.extendedclip.deluxemenus.DeluxeMenus;
 import com.extendedclip.deluxemenus.menu.options.MenuOptions;
 import com.extendedclip.deluxemenus.utils.StringUtils;
-import org.bukkit.Bukkit;
+import com.extendedclip.deluxemenus.utils.FoliaScheduler;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -25,12 +23,13 @@ public class MenuHolder implements InventoryHolder {
 
     private final DeluxeMenus plugin;
     private final Player viewer;
+    private final String viewerName;
 
     private Player placeholderPlayer;
     private String menuName;
     private Set<MenuItem> activeItems;
-    private BukkitTask updateTask = null;
-    private BukkitTask refreshTask = null;
+    private FoliaScheduler.Task updateTask = null;
+    private FoliaScheduler.Task refreshTask = null;
     private Inventory inventory;
     private boolean updating;
     private boolean parsePlaceholdersInArguments;
@@ -40,22 +39,24 @@ public class MenuHolder implements InventoryHolder {
     public MenuHolder(final @NotNull DeluxeMenus plugin, final @NotNull Player viewer) {
         this.plugin = plugin;
         this.viewer = viewer;
+        this.viewerName = viewer.getName();
     }
 
     public MenuHolder(final @NotNull DeluxeMenus plugin, final @NotNull Player viewer, final @NotNull String menuName,
                       final @NotNull Set<@NotNull MenuItem> activeItems, final @NotNull Inventory inventory) {
         this.plugin = plugin;
         this.viewer = viewer;
+        this.viewerName = viewer.getName();
         this.menuName = menuName;
         this.activeItems = activeItems;
         this.inventory = inventory;
     }
 
     public String getViewerName() {
-        return viewer.getName();
+        return viewerName;
     }
 
-    public BukkitTask getUpdateTask() {
+    public FoliaScheduler.Task getUpdateTask() {
         return updateTask;
     }
 
@@ -124,6 +125,10 @@ public class MenuHolder implements InventoryHolder {
     }
 
     public void refreshMenu() {
+        FoliaScheduler.entity(plugin, viewer, this::refreshMenuOwned);
+    }
+
+    private void refreshMenuOwned() {
 
         Optional<Menu> optionalMenu = getMenu();
         if (optionalMenu.isEmpty()) {
@@ -138,7 +143,7 @@ public class MenuHolder implements InventoryHolder {
 
         setUpdating(true);
 
-        Bukkit.getScheduler().runTaskAsynchronously(this.plugin, () -> {
+        {
 
             final Set<MenuItem> active = new HashSet<>();
 
@@ -176,7 +181,7 @@ public class MenuHolder implements InventoryHolder {
                 Menu.closeMenu(plugin, getViewer(), true);
             }
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            {
 
                 boolean update = false;
 
@@ -212,8 +217,8 @@ public class MenuHolder implements InventoryHolder {
                 }
 
                 setUpdating(false);
-            });
-        });
+            }
+        }
     }
 
     public void stopPlaceholderUpdate() {
@@ -241,12 +246,7 @@ public class MenuHolder implements InventoryHolder {
             stopRefreshTask();
         }
 
-        refreshTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                refreshMenu();
-            }
-        }.runTaskTimerAsynchronously(plugin, 20L,
+        refreshTask = FoliaScheduler.entityRepeating(plugin, viewer, this::refreshMenuOwned, 20L,
                 20L * Menu.getMenuByName(menuName)
                         .map(Menu::options)
                         .map(MenuOptions::refreshInterval)
@@ -259,10 +259,7 @@ public class MenuHolder implements InventoryHolder {
             stopPlaceholderUpdate();
         }
 
-        updateTask = new BukkitRunnable() {
-
-            @Override
-            public void run() {
+        updateTask = FoliaScheduler.entityRepeating(plugin, viewer, () -> {
 
                 if (updating) {
                     return;
@@ -315,9 +312,7 @@ public class MenuHolder implements InventoryHolder {
                         i.setAmount(amt);
                     }
                 }
-            }
-
-        }.runTaskTimerAsynchronously(plugin, 20L,
+        }, 20L,
                 20L * Menu.getMenuByName(menuName)
                         .map(Menu::options)
                         .map(MenuOptions::updateInterval)

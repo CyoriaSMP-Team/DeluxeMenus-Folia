@@ -95,8 +95,6 @@ public class DeluxeMenus extends JavaPlugin {
     public void onDisable() {
         Bukkit.getMessenger().unregisterOutgoingPluginChannel(this, "BungeeCord");
 
-        Bukkit.getScheduler().cancelTasks(this);
-
         Menu.unloadForShutdown(this);
 
         if (this.ephemeralCooldownManager != null) {
