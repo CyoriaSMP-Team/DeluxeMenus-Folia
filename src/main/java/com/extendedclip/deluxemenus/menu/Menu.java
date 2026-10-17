@@ -58,7 +58,7 @@ public class Menu {
 
     public static void unload(final @NotNull DeluxeMenus plugin, final @NotNull String name) {
         menuHolders.stream().filter(holder -> holder.getMenuName().equalsIgnoreCase(name))
-                .forEach(holder -> closeMenu(plugin, holder.getViewer(), true));
+                .forEach(holder -> closeMenu(plugin, holder, true, false, true));
 
         Optional<Menu> optionalMenu = Menu.getMenuByName(name);
         if (optionalMenu.isEmpty()) {
@@ -70,7 +70,7 @@ public class Menu {
     }
 
     public static void unload(final @NotNull DeluxeMenus plugin) {
-        menuHolders.stream().toList().forEach(holder -> closeMenu(plugin, holder.getViewer(), true));
+        menuHolders.stream().toList().forEach(holder -> closeMenu(plugin, holder, true, false, false));
         for (Menu menu : Menu.getAllMenus()) {
             menu.unregisterCommand();
         }
@@ -173,16 +173,18 @@ public class Menu {
     }
 
     public static void closeMenu(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final boolean close, final boolean executeCloseActions) {
-        FoliaScheduler.entity(plugin, player, () -> closeMenuOwned(plugin, player, close, executeCloseActions));
+        FoliaScheduler.entity(plugin, player, () -> getMenuHolder(player).ifPresent(holder ->
+                closeMenuOwned(plugin, player, holder, close, executeCloseActions, true)));
     }
 
-    private static void closeMenuOwned(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final boolean close, final boolean executeCloseActions) {
-        Optional<MenuHolder> optionalHolder = getMenuHolder(player);
-        if (optionalHolder.isEmpty()) {
-            return;
-        }
+    private static void closeMenu(final @NotNull DeluxeMenus plugin, final @NotNull MenuHolder holder, final boolean close,
+                                  final boolean executeCloseActions, final boolean rememberLastMenu) {
+        final Player player = holder.getViewer();
+        FoliaScheduler.entity(plugin, player, () -> closeMenuOwned(plugin, player, holder, close, executeCloseActions, rememberLastMenu));
+    }
 
-        MenuHolder holder = optionalHolder.get();
+    private static void closeMenuOwned(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final @NotNull MenuHolder holder,
+                                       final boolean close, final boolean executeCloseActions, final boolean rememberLastMenu) {
 
         holder.stopPlaceholderUpdate();
         holder.stopRefreshTask();
@@ -192,13 +194,17 @@ public class Menu {
         }
 
         if (close) {
-            player.closeInventory();
+            if (player.getOpenInventory().getTopInventory().getHolder() == holder) {
+                player.closeInventory();
+            }
             cleanInventory(plugin, player);
         }
         menuHolders.remove(holder);
-        holder.getMenu().ifPresentOrElse(
-                menu -> lastOpenedMenus.put(player.getUniqueId(), menu),
-                () -> lastOpenedMenus.remove(player.getUniqueId()));
+        if (rememberLastMenu) {
+            holder.getMenu().ifPresentOrElse(
+                    menu -> lastOpenedMenus.put(player.getUniqueId(), menu),
+                    () -> lastOpenedMenus.remove(player.getUniqueId()));
+        }
     }
 
     public static void closeMenuForShutdown(final @NotNull DeluxeMenus plugin, final @NotNull Player player) {
