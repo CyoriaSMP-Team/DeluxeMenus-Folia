@@ -46,6 +46,10 @@ dependencies {
     implementation(libs.bstats)
 
     compileOnly("org.jetbrains:annotations:26.1.0")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    testImplementation(libs.paper)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 java {
@@ -56,6 +60,10 @@ java {
 }
 
 tasks {
+    test {
+        useJUnitPlatform()
+    }
+
     withType<JavaCompile> {
         options.release.set(21)
     }
