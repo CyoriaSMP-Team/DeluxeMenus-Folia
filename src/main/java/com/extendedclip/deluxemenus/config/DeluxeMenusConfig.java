@@ -1027,6 +1027,9 @@ public class DeluxeMenusConfig {
                             );
                             minimum = permissions.size();
                         }
+                        if (minimum == -1) {
+                            minimum = permissions.size();
+                        }
                         req = new HasPermissionsRequirement(permissions, minimum, invert);
                     } else {
                         plugin.debug(
