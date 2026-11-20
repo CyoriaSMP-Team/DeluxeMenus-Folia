@@ -8,6 +8,7 @@ import com.extendedclip.deluxemenus.menu.options.MenuOptions;
 import com.extendedclip.deluxemenus.requirement.RequirementList;
 import com.extendedclip.deluxemenus.utils.DebugLevel;
 import com.extendedclip.deluxemenus.utils.StringUtils;
+import com.extendedclip.deluxemenus.utils.FoliaScheduler;
 
 import java.util.*;
 import java.util.Map.Entry;
@@ -24,9 +25,9 @@ import org.jetbrains.annotations.Nullable;
 
 public class Menu {
 
-    private static final Map<String, Menu> menus = new HashMap<>();
-    private static final Set<MenuHolder> menuHolders = new HashSet<>();
-    private static final Map<UUID, Menu> lastOpenedMenus = new HashMap<>();
+    private static final Map<String, Menu> menus = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Set<MenuHolder> menuHolders = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Map<UUID, Menu> lastOpenedMenus = new java.util.concurrent.ConcurrentHashMap<>();
 
     private final DeluxeMenus plugin;
     private final MenuOptions options;
@@ -56,11 +57,8 @@ public class Menu {
     }
 
     public static void unload(final @NotNull DeluxeMenus plugin, final @NotNull String name) {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (isInMenu(p, name)) {
-                closeMenu(plugin, p, true);
-            }
-        }
+        menuHolders.stream().filter(holder -> holder.getMenuName().equalsIgnoreCase(name))
+                .forEach(holder -> closeMenu(plugin, holder, true, false, true));
 
         Optional<Menu> optionalMenu = Menu.getMenuByName(name);
         if (optionalMenu.isEmpty()) {
@@ -72,11 +70,7 @@ public class Menu {
     }
 
     public static void unload(final @NotNull DeluxeMenus plugin) {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (isInMenu(p)) {
-                closeMenu(plugin, p, true);
-            }
-        }
+        menuHolders.stream().toList().forEach(holder -> closeMenu(plugin, holder, true, false, false));
         for (Menu menu : Menu.getAllMenus()) {
             menu.unregisterCommand();
         }
@@ -96,11 +90,7 @@ public class Menu {
     }
 
     public static void unloadForShutdown(final @NotNull DeluxeMenus plugin) {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            if (isInMenu(player)) {
-                closeMenuForShutdown(plugin, player);
-            }
-        }
+        menuHolders.stream().toList().forEach(holder -> closeMenuForShutdown(plugin, holder.getViewer()));
         menus.clear();
     }
 
@@ -183,12 +173,18 @@ public class Menu {
     }
 
     public static void closeMenu(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final boolean close, final boolean executeCloseActions) {
-        Optional<MenuHolder> optionalHolder = getMenuHolder(player);
-        if (optionalHolder.isEmpty()) {
-            return;
-        }
+        FoliaScheduler.entity(plugin, player, () -> getMenuHolder(player).ifPresent(holder ->
+                closeMenuOwned(plugin, player, holder, close, executeCloseActions, true)));
+    }
 
-        MenuHolder holder = optionalHolder.get();
+    private static void closeMenu(final @NotNull DeluxeMenus plugin, final @NotNull MenuHolder holder, final boolean close,
+                                  final boolean executeCloseActions, final boolean rememberLastMenu) {
+        final Player player = holder.getViewer();
+        FoliaScheduler.entity(plugin, player, () -> closeMenuOwned(plugin, player, holder, close, executeCloseActions, rememberLastMenu));
+    }
+
+    private static void closeMenuOwned(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final @NotNull MenuHolder holder,
+                                       final boolean close, final boolean executeCloseActions, final boolean rememberLastMenu) {
 
         holder.stopPlaceholderUpdate();
         holder.stopRefreshTask();
@@ -198,20 +194,25 @@ public class Menu {
         }
 
         if (close) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.getOpenInventory().getTopInventory().getHolder() == holder) {
                 player.closeInventory();
-                cleanInventory(plugin, player);
-            });
+            }
+            cleanInventory(plugin, player);
         }
         menuHolders.remove(holder);
-        lastOpenedMenus.put(player.getUniqueId(), holder.getMenu().orElse(null));
+        if (rememberLastMenu) {
+            holder.getMenu().ifPresentOrElse(
+                    menu -> lastOpenedMenus.put(player.getUniqueId(), menu),
+                    () -> lastOpenedMenus.remove(player.getUniqueId()));
+        }
     }
 
     public static void closeMenuForShutdown(final @NotNull DeluxeMenus plugin, final @NotNull Player player) {
-        getMenuHolder(player).ifPresent(MenuHolder::stopPlaceholderUpdate);
-
-        player.closeInventory();
-        cleanInventory(plugin, player);
+        FoliaScheduler.entity(plugin, player, () -> {
+            getMenuHolder(player).ifPresent(MenuHolder::stopPlaceholderUpdate);
+            player.closeInventory();
+            cleanInventory(plugin, player);
+        });
     }
 
     public static void closeMenu(final @NotNull DeluxeMenus plugin, final @NotNull Player player, final boolean close) {
@@ -268,6 +269,10 @@ public class Menu {
     }
 
     public void openMenu(final @NotNull Player viewer, final @Nullable Map<String, String> args, final @Nullable Player placeholderPlayer) {
+        FoliaScheduler.entity(plugin, viewer, () -> openMenuOwned(viewer, args, placeholderPlayer));
+    }
+
+    private void openMenuOwned(final @NotNull Player viewer, final @Nullable Map<String, String> args, final @Nullable Player placeholderPlayer) {
         if (items == null || items.isEmpty()) {
             return;
         }
@@ -293,7 +298,7 @@ public class Menu {
             return;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        {
 
             Set<MenuItem> activeItems = new HashSet<>();
 
@@ -382,7 +387,7 @@ public class Menu {
 
             final boolean updatePlaceholders = update;
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            {
                 if(options.refresh()) {
                     holder.startRefreshTask();
                 }
@@ -397,13 +402,10 @@ public class Menu {
         if (updatePlaceholders) {
           holder.startUpdatePlaceholdersTask();
         }
-      });
-
-      Bukkit.getScheduler().runTask(plugin, () -> {
         DeluxeMenusOpenMenuEvent openEvent = new DeluxeMenusOpenMenuEvent(viewer, holder);
         Bukkit.getPluginManager().callEvent(openEvent);
-      });
-    });
+        }
+    }
   }
 
     public void refreshForAll() {

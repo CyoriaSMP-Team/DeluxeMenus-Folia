@@ -4,6 +4,7 @@ import com.extendedclip.deluxemenus.DeluxeMenus;
 import com.extendedclip.deluxemenus.listener.Listener;
 import com.extendedclip.deluxemenus.utils.DebugLevel;
 import com.extendedclip.deluxemenus.utils.Messages;
+import com.extendedclip.deluxemenus.utils.FoliaScheduler;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -15,7 +16,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.jetbrains.annotations.NotNull;
 
 public class UpdateChecker extends Listener {
@@ -26,27 +26,17 @@ public class UpdateChecker extends Listener {
       = TextReplacementConfig.builder().matchLiteral("<current-version>");
 
   final int resourceId = 11734;
-  private String latestVersion = null;
-  private boolean updateAvailable = false;
+  private volatile String latestVersion = null;
+  private volatile boolean updateAvailable = false;
 
   public UpdateChecker(final @NotNull DeluxeMenus instance) {
     super(instance);
 
-    new BukkitRunnable() {
-      @Override
-      public void run() {
-        if (check()) {
-          new BukkitRunnable() {
-
-            @Override
-            public void run() {
-              register();
-            }
-          }.runTask(plugin);
-        }
+    FoliaScheduler.async(plugin, () -> {
+      if (check()) {
+        FoliaScheduler.global(plugin, this::register);
       }
-
-    }.runTaskAsynchronously(plugin);
+    });
   }
 
   @EventHandler(priority = EventPriority.MONITOR)

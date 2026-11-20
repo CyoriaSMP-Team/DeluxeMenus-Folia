@@ -108,7 +108,7 @@ public class ClickActionTask extends BukkitRunnable {
                 break;
 
             case CONSOLE:
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), executable);
+                FoliaScheduler.global(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), executable));
                 break;
 
             case MINI_MESSAGE:
@@ -116,7 +116,7 @@ public class ClickActionTask extends BukkitRunnable {
                 break;
 
             case MINI_BROADCAST:
-                AdventureUtils.broadcast(MiniMessage.miniMessage().deserialize(executable));
+                AdventureUtils.broadcast(plugin, MiniMessage.miniMessage().deserialize(executable));
                 break;
 
             case MESSAGE:
@@ -156,7 +156,7 @@ public class ClickActionTask extends BukkitRunnable {
                 break;
 
             case BROADCAST:
-                AdventureUtils.broadcast(StringUtils.color(executable));
+                AdventureUtils.broadcast(plugin, StringUtils.color(executable));
                 break;
 
             case CLOSE:
@@ -277,7 +277,7 @@ public class ClickActionTask extends BukkitRunnable {
 
             case JSON_BROADCAST:
             case BROADCAST_JSON:
-                AdventureUtils.broadcast(AdventureUtils.fromJson(executable));
+                AdventureUtils.broadcast(plugin, AdventureUtils.fromJson(executable));
                 break;
 
             case REFRESH:
@@ -484,15 +484,11 @@ public class ClickActionTask extends BukkitRunnable {
 
                 switch (actionType) {
                     case BROADCAST_WORLD_RAW_SOUND:
-                        for (final Player broadcastTarget : player.getWorld().getPlayers()) {
-                            broadcastTarget.playSound(broadcastTarget.getLocation(), soundName, volume, pitch);
-                        }
+                        broadcastSound(player, true, soundName, null, volume, pitch);
                         break;
 
                     case BROADCAST_RAW_SOUND:
-                        for (final Player broadcastTarget : Bukkit.getOnlinePlayers()) {
-                            broadcastTarget.playSound(broadcastTarget.getLocation(), soundName, volume, pitch);
-                        }
+                        broadcastSound(player, false, soundName, null, volume, pitch);
                         break;
 
                     case PLAY_RAW_SOUND:
@@ -508,9 +504,7 @@ public class ClickActionTask extends BukkitRunnable {
                             );
                             break;
                         }
-                        for (final Player broadcastTarget : Bukkit.getOnlinePlayers()) {
-                            broadcastTarget.playSound(broadcastTarget.getLocation(), sound, volume, pitch);
-                        }
+                        broadcastSound(player, false, null, sound, volume, pitch);
                         break;
 
                     case BROADCAST_WORLD_SOUND:
@@ -522,9 +516,7 @@ public class ClickActionTask extends BukkitRunnable {
                             );
                             break;
                         }
-                        for (final Player broadcastTarget : player.getWorld().getPlayers()) {
-                            broadcastTarget.playSound(broadcastTarget.getLocation(), sound, volume, pitch);
-                        }
+                        broadcastSound(player, true, null, sound, volume, pitch);
                         break;
 
                     case PLAY_SOUND:
@@ -548,6 +540,25 @@ public class ClickActionTask extends BukkitRunnable {
 
     private boolean isRaw(ActionType actionType) {
         return actionType == ActionType.PLAY_RAW_SOUND || actionType == ActionType.BROADCAST_RAW_SOUND || actionType == ActionType.BROADCAST_WORLD_RAW_SOUND;
+    }
+
+    private void broadcastSound(Player source, boolean worldOnly, @Nullable String rawName, @Nullable Sound sound,
+                                float volume, float pitch) {
+        final UUID sourceWorld = worldOnly ? source.getWorld().getUID() : null;
+        FoliaScheduler.global(plugin, () -> {
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                FoliaScheduler.entity(plugin, target, () -> {
+                    if (sourceWorld != null && !sourceWorld.equals(target.getWorld().getUID())) {
+                        return;
+                    }
+                    if (sound == null) {
+                        target.playSound(target.getLocation(), rawName, volume, pitch);
+                    } else {
+                        target.playSound(target.getLocation(), sound, volume, pitch);
+                    }
+                });
+            }
+        });
     }
 
     /**

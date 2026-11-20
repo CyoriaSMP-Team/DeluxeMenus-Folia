@@ -8,6 +8,7 @@ import com.extendedclip.deluxemenus.config.DeluxeMenusConfig;
 import com.extendedclip.deluxemenus.menu.Menu;
 import com.extendedclip.deluxemenus.menu.MenuHolder;
 import com.extendedclip.deluxemenus.utils.Messages;
+import com.extendedclip.deluxemenus.utils.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -87,13 +88,13 @@ public class ExecuteCommand extends SubCommand {
         final ClickActionTask actionTask = new ClickActionTask(plugin, target.getUniqueId(), action.getType(), action.getExecutable(), holder.getTypedArgs(), true, true);
 
         if (action.hasDelay()) {
-            actionTask.runTaskLater(plugin, action.getDelay(holder));
+            FoliaScheduler.entityLater(plugin, target, actionTask::run, action.getDelay(holder));
 
             plugin.sms(sender, Messages.ACTION_TO_BE_EXECUTED.message().replaceText(AMOUNT_REPLACER_BUILDER.replacement(String.valueOf(action.getDelay(holder))).build()));
             return;
         }
 
-        actionTask.runTask(plugin);
+        FoliaScheduler.entity(plugin, target, actionTask::run);
 
         plugin.sms(sender, Messages.ACTION_EXECUTED_FOR.message().replaceText(PLAYER_REPLACER_BUILDER.replacement(target.getName()).build()));
 

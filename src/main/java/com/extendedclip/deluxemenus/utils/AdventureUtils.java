@@ -1,11 +1,12 @@
 package com.extendedclip.deluxemenus.utils;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 public final class AdventureUtils {
     private final static GsonComponentSerializer gson = GsonComponentSerializer.gson();
@@ -25,7 +26,11 @@ public final class AdventureUtils {
     /**
      * Sends a message to every online player. The console is deliberately not included.
      */
-    public static void broadcast(@NotNull final Component message) {
-        Audience.audience(Bukkit.getOnlinePlayers()).sendMessage(message);
+    public static void broadcast(@NotNull final Plugin plugin, @NotNull final Component message) {
+        FoliaScheduler.global(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                FoliaScheduler.entity(plugin, player, () -> player.sendMessage(message));
+            }
+        });
     }
 }

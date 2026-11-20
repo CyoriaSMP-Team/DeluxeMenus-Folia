@@ -31,6 +31,7 @@ import com.extendedclip.deluxemenus.requirement.RequirementType;
 import com.extendedclip.deluxemenus.requirement.StringLengthRequirement;
 import com.extendedclip.deluxemenus.requirement.wrappers.ItemWrapper;
 import com.extendedclip.deluxemenus.utils.DebugLevel;
+import com.extendedclip.deluxemenus.utils.FoliaScheduler;
 import com.extendedclip.deluxemenus.utils.ItemUtils;
 import com.extendedclip.deluxemenus.utils.LocationUtils;
 import com.extendedclip.deluxemenus.utils.RegistryUtils;
@@ -1250,11 +1251,11 @@ public class DeluxeMenusConfig {
                         final ClickActionTask actionTask = new ClickActionTask(plugin, holder.getViewer().getUniqueId(), action.getType(), action.getExecutable(), holder.getTypedArgs(), holder.parsePlaceholdersInArguments(), holder.parsePlaceholdersAfterArguments());
 
                         if (action.hasDelay()) {
-                            actionTask.runTaskLater(plugin, action.getDelay(holder));
+                            FoliaScheduler.entityLater(plugin, holder.getViewer(), actionTask::run, action.getDelay(holder));
                             continue;
                         }
 
-                        actionTask.runTask(plugin);
+                        FoliaScheduler.entity(plugin, holder.getViewer(), actionTask::run);
                     }
                 }
             };
